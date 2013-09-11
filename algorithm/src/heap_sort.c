@@ -3,103 +3,42 @@
 #include "algorithm-common.h"
 #include "heap_sort.h"
 
-struct heap{
-	int *data;
-	int max_size;
-	int size;
-	int flag;
-};
-
-void heap_print(struct heap *h)
+static void heap_sort_array_adjust(int *array, int start, int end)
 {
-	print_int_array(h->data, h->size);
-}
+	int i = 0;
+	for (i = start;
+		((i << 1) + 1) < end;
+		) {
+		int left = (i << 1) + 1;
+		int right = (i << 1) + 2;
+		int next = i;
 
-static int heap_adjust(struct heap *h, int start, int end)
-{
-	int i = start;
-
-	if (h->flag) {
-		for (i = end - 1; i > start; ) {
-			int parent = (i - 1) >> 1;
-			if (h->data[i] > h->data[parent]) {
-				swap(h->data + i, h->data + parent);
-				i = parent;
-			} else {
-				break;
-			}
+		if (array[left] > array[i]) {
+			next = left;
 		}
-	} else {
-		for (i = end - 1; i > start; ) {
-			int parent = (i - 1) >> 1;
-			if (h->data[i] < h->data[parent]) {
-				swap(h->data + i, h->data + parent);
-				i = parent;
-			} else {
-				break;
-			}
+		if (right < end && array[right] > array[left]) {
+			next = right;
+		}
+		if (next != i) {
+			swap(array + next, array + i);
+			i = next;
+		}else {
+			break;
 		}
 	}
-	return 0;
 }
 
-int heap_add(struct heap *h, int value)
+int heap_sort(int *array, int size)
 {
-	if (h->size >= h->max_size) {
-		return -1;
+	int i = 0;
+	for (i = (size - 2) / 2; i >= 0; i--) {
+		heap_sort_array_adjust(array, i, size);
 	}
 
-	h->data[h->size] = value;
-	h->size++;
-
-	heap_adjust(h, 0, h->size);
-
-	return 0;
-}
-
-int heap_delete(struct heap *h, int index, int *value)
-{
-	if (h->size <= 0) 
-		return -1;
-
-	if (value)
-		*value = h->data[index];
-	h->data[index] = h->data[h->size];
-	h->size--;
-	
-	heap_adjust(h, index, h->size);
+	for (i = 1; i < size; i++) {
+		swap(array, array + size - i);
+		heap_sort_array_adjust(array, 0, size - i);
+	}
 
 	return 0;
 }
-
-struct heap * heap_new(int max_size, int flag)
-{
-	struct heap *h = NULL;
-
-	h = (struct heap *)malloc(sizeof(struct heap));
-	if (!h) {
-		return NULL;
-	}
-
-	h->data = (int *)malloc(sizeof(int) * max_size);
-	if (!h->data) {
-		free(h);
-		return NULL;
-	}
-
-	h->max_size = max_size;
-	h->size = 0;
-	h->flag = flag;
-
-	return h;
-}
-
-void heap_free(struct heap *h)
-{
-	if (h) {
-		if (h->data)
-			free(h->data);
-		free(h);
-	}
-}
-

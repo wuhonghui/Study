@@ -12,6 +12,14 @@ add_executable(bubble_sort_test bubble_sort_test.c)
 target_link_libraries(bubble_sort_test algorithm)
 add_test(NAME bubble_sort_test COMMAND bubble_sort_test)
 
+add_executable(heap_test heap_test.c)
+target_link_libraries(heap_test algorithm)
+add_test(NAME heap_test COMMAND heap_test)
+
 add_executable(heap_sort_test heap_sort_test.c)
 target_link_libraries(heap_sort_test algorithm)
 add_test(NAME heap_sort_test COMMAND heap_sort_test)
+
+add_executable(max_sub_array_test max_sub_array_test.c)
+target_link_libraries(max_sub_array_test algorithm)
+add_test(NAME max_sub_array_test COMMAND max_sub_array_test)
