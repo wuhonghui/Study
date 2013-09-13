@@ -1,25 +1,12 @@
 include_directories(${algorithm_SOURCE_DIR}/src)
 
-add_executable(gcd_test gcd_test.c)
-target_link_libraries(gcd_test algorithm)
+aux_source_directory(. TEST_CASES)
 
-add_test(NAME gcd_test1 COMMAND gcd_test 4 6 2)
-add_test(NAME gcd_test2 COMMAND gcd_test 6 4 2)
-add_test(NAME gcd_test3 COMMAND gcd_test 27 36 9)
-add_test(NAME gcd_test4 COMMAND gcd_test 99999 3333 3)
-
-add_executable(bubble_sort_test bubble_sort_test.c)
-target_link_libraries(bubble_sort_test algorithm)
-add_test(NAME bubble_sort_test COMMAND bubble_sort_test)
-
-add_executable(heap_test heap_test.c)
-target_link_libraries(heap_test algorithm)
-add_test(NAME heap_test COMMAND heap_test)
-
-add_executable(heap_sort_test heap_sort_test.c)
-target_link_libraries(heap_sort_test algorithm)
-add_test(NAME heap_sort_test COMMAND heap_sort_test)
-
-add_executable(max_sub_array_test max_sub_array_test.c)
-target_link_libraries(max_sub_array_test algorithm)
-add_test(NAME max_sub_array_test COMMAND max_sub_array_test)
+foreach(test_case ${TEST_CASES})
+	string(REGEX REPLACE "(.*)\\.c$" "\\1" test_exe ${test_case})
+	MESSAGE(${test_case})
+	MESSAGE(${test_exe})
+	add_executable(${test_exe} ${test_case})
+	target_link_libraries(${test_exe} algorithm)
+	add_test(NAME ${test_exe} COMMAND ${test_exe})
+endforeach(test_case)

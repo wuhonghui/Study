@@ -6,10 +6,8 @@
 int 
 main(int argc, char *argv[])
 {
-	if (argc < 4)
-		return -1;
-
-	assert(atoi(argv[3]) == gcd(atoi(argv[1]), atoi(argv[2])));
+	assert(3 == gcd(3,6));
+	assert(10 == gcd(40, 90));
 
 	return 0;
 }
