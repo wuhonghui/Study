@@ -8,7 +8,7 @@ extern "C" {
 int string_rotate(char *str, int step);
 
 #ifdef __cplusplus
-extern "C" {
+}
 #endif
 
 #endif

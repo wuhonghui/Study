@@ -8,7 +8,7 @@ extern "C" {
 int bubble_sort(int *array, int start, int end);
 
 #ifdef __cplusplus
-extern "C" {
+}
 #endif
 
 #endif
