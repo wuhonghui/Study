@@ -1,31 +1,6 @@
-/*
- * =====================================================================================
- *
- *       Filename:  kmp.c
- *
- *    Description:  kmp
- *
- *        Version:  1.0
- *        Created:  10/11/2013 12:47:13 PM
- *       Revision:  none
- *       Compiler:  gcc
- *
- *         Author:  YOUR NAME (), 
- *        Company:  
- *
- * =====================================================================================
- */
 #include <string.h>
 #include <stdlib.h>
 #include "kmp.h"
-
-void show(int *m, int n)
-{
-    int i = 0;
-    for (i = 0; i < n; i++)
-        printf("%d ", m[i]);
-    printf("\n");
-}
 
 int kmp(char *sub, char *src)
 {
@@ -68,6 +43,8 @@ int kmp(char *sub, char *src)
     } else {
         index = -1;
     }
+
+    free(next);
 
     return index;
 }
