@@ -8,7 +8,7 @@ extern "C" {
 int top_k(int *array, int size, int k);
 
 #ifdef __cplusplus
-extern "C" {
+}
 #endif
 
 #endif

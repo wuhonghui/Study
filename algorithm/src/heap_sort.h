@@ -8,7 +8,7 @@ extern "C" {
 int heap_sort(int *array, int size);
 
 #ifdef __cplusplus
-extern "C" {
+}
 #endif
 
 #endif

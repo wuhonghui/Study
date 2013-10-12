@@ -16,7 +16,7 @@ struct heap * heap_new(int max_size, int flag);
 void heap_free(struct heap *h);
 
 #ifdef __cplusplus
-extern "C" {
+}
 #endif
 
 #endif

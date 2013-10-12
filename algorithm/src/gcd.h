@@ -8,7 +8,7 @@ extern "C" {
 int gcd(int a, int b);
 
 #ifdef __cplusplus
-extern "C" {
+}
 #endif
 
 #endif
