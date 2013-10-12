@@ -31,13 +31,14 @@ int kmp(char *sub, char *src)
     i = j = 0;
     index = 0;
     while (i < src_len && j < sub_len) {
-        if (next[j] == -1 ||src[i] == sub[j]) {
+        if (j == -1 ||src[i] == sub[j]) {
             i++;
             j++;
         } else {
             j = next[j];
         }
     }
+
     if (j == sub_len) {
         index = i - sub_len;
     } else {

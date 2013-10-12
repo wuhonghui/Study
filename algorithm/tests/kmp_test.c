@@ -1,20 +1,3 @@
-/*
- * =====================================================================================
- *
- *       Filename:  kmp_test.c
- *
- *    Description:  
- *
- *        Version:  1.0
- *        Created:  10/11/2013 01:02:16 PM
- *       Revision:  none
- *       Compiler:  gcc
- *
- *         Author:  YOUR NAME (), 
- *        Company:  
- *
- * =====================================================================================
- */
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
@@ -23,7 +6,26 @@
 
 int main(int argc, char *argv[])
 {
+	char *sub;
+	int ret;
+
     assert(0 == kmp("abc", "abcdddd"));
     assert(9 == kmp("ui88", "aui8xxxuiui88"));
+
+	sub = "ababb";
+	ret = kmp(sub, "gcatcgcagagagtatacagtacg");
+	assert(ret == -1);
+
+	sub = "aaaa";
+	ret = kmp(sub, "aaabaaabaaabdcaa");
+	assert(ret == -1);
+
+	sub = "fsss";
+	ret = kmp(sub, "fssffffssfsfsfsfsfsfsfsss");
+	assert(ret = 21);
+
+	sub = "xckxcxcckxck";
+	ret = kmp(sub, "soxckkkaxckxcxcckxcks");
+	assert(ret == 8);
     return 0;
 }
