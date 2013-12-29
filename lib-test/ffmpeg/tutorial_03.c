@@ -11,6 +11,9 @@
 #include <SDL.h>
 #include <SDL_thread.h>
 
+#define SDL_AUDIO_BUFFER_SIZE 1024
+#define MAX_AUDIO_FRAME_SIZE 192000
+
 struct packet_queue{
     AVPacketList *first, *last;
     int nb_packets;
@@ -101,49 +104,48 @@ struct packet_queue audio_pkt_queue;
 
 int audio_decode_frame(AVCodecContext *avctx, uint8_t *buf, int buf_size)
 {
-    int len1 = 0;
-    int data_size = 0;
-    int line_size = 0;
-    int got_frame = 0;
-    int new_packet = 0;
-
     static AVPacket pkt = {0};
+    static uint8_t *audio_pkt_data = NULL;
+    static int audio_pkt_size = 0;
     static AVFrame frame = {{0}};
 
+    int len1, data_size = 0;
+
     for (;;) {
-        while (!got_frame) {
-            new_packet = packet_queue_get(&audio_pkt_queue, &pkt, 1);
-            if (new_packet < 0) {
-                return -1;
-            }
-            // TODO: decode audio failed!!!
+        while (audio_pkt_size > 0) {
+            int got_frame = 0;
             len1 = avcodec_decode_audio4(avctx, &frame, &got_frame, &pkt);
             if (len1 < 0) {
-                av_log(NULL, AV_LOG_ERROR, "avcodec_decode_audio4 error %d\n", len1);
-                return -1;
+                /* error decode, skip frame*/
+                audio_pkt_size = 0;
+                break;
             }
-            
-            av_log(NULL, AV_LOG_DEBUG, "got_frame: %d, len1: %d\n", got_frame, len1);
+            audio_pkt_size -= len1;
+            audio_pkt_data += len1;
+            if (got_frame) {
+                data_size = av_samples_get_buffer_size(
+                                NULL,
+                                avctx->channels,
+                                frame.nb_samples,
+                                avctx->sample_fmt,
+                                1
+                            );
+                memcpy(buf, frame.data[0], data_size);
+            }
+            if (data_size <= 0)
+                continue;
+            return data_size;
         }
 
-    /*
-        pkt.data += len1;
-        pkt.size -= len1;
-
-        if (pkt.size == 0)
+        if (pkt.data) {
             av_free_packet(&pkt);
-        
-
-        data_size = av_samples_get_buffer_size(&line_size, avctx->channels,
-                                               frame.nb_samples,
-                                               avctx->sample_fmt, 1);
-        if (data_size > buf_size) {
-            av_log(NULL, AV_LOG_ERROR, "buffer size too small for frame\n");
-            return -1;
         }
-        memcpy(buf, frame.extended_data[0], data_size);
-        */
-        return -1;
+        
+        if (packet_queue_get(&audio_pkt_queue, &pkt, 1) < 0)
+            return -1;
+            
+        audio_pkt_data = pkt.data;
+        audio_pkt_size = pkt.size;
     }
 }
 
@@ -153,22 +155,20 @@ void audio_callback(void *userdata, uint8_t * stream, int len)
     int data_len = 0;
     int audio_size = 0;
 
-    static uint8_t audio_buf[20000];
+    static uint8_t audio_buf[MAX_AUDIO_FRAME_SIZE * 3 / 2];
     static unsigned int audio_buf_size = 0;
     static unsigned int audio_buf_index = 0;
-
-    av_log(NULL, AV_LOG_DEBUG, "audio_callback with len %d\n", len);
 
     while(len > 0)
     {
         if(audio_buf_index >= audio_buf_size)
         {
             /* We have already sent all our data; get more */
-            audio_size = audio_decode_frame(codec_ctx, audio_buf, sizeof(audio_buf));
+            audio_size = audio_decode_frame(codec_ctx, audio_buf, audio_buf_size);
             if(audio_size < 0)
             {
                 /* If error, output silence */
-                audio_buf_size = 1024; // arbitrary?
+                audio_buf_size = 1024;
                 memset(audio_buf, 0, audio_buf_size);
             }
             else
@@ -213,6 +213,8 @@ int main(int argc, char *argv[])
 		av_log(NULL, AV_LOG_ERROR, "failed to find stream info\n");
 		return -1;
 	}
+
+    av_dump_format(format_ctx, 0, filename, 0);
 
 	// 寻找视频、音频流
 	AVCodecContext *video_codec_ctx = NULL;
@@ -262,84 +264,94 @@ int main(int argc, char *argv[])
 	// 分配帧缓冲区
 	AVFrame *video_frame = NULL;
 	AVFrame *video_frame_rgb = NULL;
+	AVPacket packet;
+    int frame_finished = 0;
+
+    uint8_t *buffer = NULL;
+    int num_bytes = 0;
+    
+    struct SwsContext *img_convert_ctx = NULL;
+    SDL_Renderer *sdl_renderer = NULL;
+    SDL_Window *sdl_window = NULL;
+    SDL_Texture *sdl_texture = NULL;
+    
 	video_frame = avcodec_alloc_frame();
 	video_frame_rgb = avcodec_alloc_frame();
 	if (video_frame == NULL || video_frame_rgb == NULL) {
 		av_log(NULL, AV_LOG_ERROR, "failed to alloc video frame\n");
 		return -1;
 	}
-	
-	uint8_t *buffer = NULL;
-	int num_bytes = 0;
-	num_bytes = avpicture_get_size(PIX_FMT_RGB32, video_codec_ctx->width, video_codec_ctx->height);
-	buffer = (uint8_t *)av_malloc(num_bytes * sizeof(uint8_t));
-	if (!buffer) {
-		av_log(NULL, AV_LOG_ERROR, "failed to alloc RGB video buffer\n");
-		return -1;
-	}
-	avpicture_fill((AVPicture *)video_frame_rgb, buffer, PIX_FMT_RGB32, 
-				video_codec_ctx->width, video_codec_ctx->height);
-	
-	// 格式转换上下文
-	struct SwsContext *img_convert_ctx = NULL;
-	img_convert_ctx = sws_getContext(video_codec_ctx->width, video_codec_ctx->height, video_codec_ctx->pix_fmt, 
-								video_codec_ctx->width, video_codec_ctx->height, PIX_FMT_RGB32,
-								SWS_BICUBIC, NULL, NULL, NULL);
 
-	int frame_finished = 0;
-	AVPacket packet;
+	if (video_codec_ctx) {
 
-	// 初始化 Simple Direct Layer
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)){
-		fprintf(stderr, "failed to init SDL - %s\n", SDL_GetError());
-		exit(-1);
-	}
-	
-	// 创建显示窗口
-	SDL_Window *sdl_window = SDL_CreateWindow("My Video Window", 
-										SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 
-										video_codec_ctx->width, video_codec_ctx->height,
-										0);
-	if (!sdl_window) {
-		fprintf(stderr, "failed to create screen\n");
-		exit(-1);
-	}
+    	num_bytes = avpicture_get_size(PIX_FMT_RGB32, video_codec_ctx->width, video_codec_ctx->height);
+    	buffer = (uint8_t *)av_malloc(num_bytes * sizeof(uint8_t));
+    	if (!buffer) {
+    		av_log(NULL, AV_LOG_ERROR, "failed to alloc RGB video buffer\n");
+    		return -1;
+    	}
+    	avpicture_fill((AVPicture *)video_frame_rgb, buffer, PIX_FMT_RGB32, 
+    				video_codec_ctx->width, video_codec_ctx->height);
+    	
+    	// 格式转换上下文
+    	img_convert_ctx = sws_getContext(video_codec_ctx->width, video_codec_ctx->height, video_codec_ctx->pix_fmt, 
+        								video_codec_ctx->width, video_codec_ctx->height, PIX_FMT_RGB32,
+        								SWS_BICUBIC, NULL, NULL, NULL);
 
-	// 创建渲染上下文
-	SDL_Renderer *sdl_renderer = SDL_CreateRenderer(sdl_window, -1, 0);
-	if (!sdl_renderer) {
-		fprintf(stderr, "failed to create renderer\n");
-		exit(-1);
-	}
-	SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, 255);
-	SDL_RenderClear(sdl_renderer);
-	SDL_RenderPresent(sdl_renderer);
+    	// 初始化 Simple Direct Layer
+    	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER)){
+    		fprintf(stderr, "failed to init SDL - %s\n", SDL_GetError());
+    		exit(-1);
+    	}
+    	
+    	// 创建显示窗口
+    	sdl_window = SDL_CreateWindow("My Video Window", 
+     									SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 
+     									video_codec_ctx->width, video_codec_ctx->height,
+     									0);
+    	if (!sdl_window) {
+    		fprintf(stderr, "failed to create screen\n");
+    		exit(-1);
+    	}
 
-	// 创建纹理图案
-	SDL_Texture *sdl_texture = SDL_CreateTexture(sdl_renderer, 
-											SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-											video_codec_ctx->width, video_codec_ctx->height);
-	if (!sdl_texture) {
-		fprintf(stderr, "failed to create texture\n");
-		exit(-1);
+    	// 创建渲染上下文
+    	sdl_renderer = SDL_CreateRenderer(sdl_window, -1, 0);
+    	if (!sdl_renderer) {
+    		fprintf(stderr, "failed to create renderer\n");
+    		exit(-1);
+    	}
+    	SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, 255);
+    	SDL_RenderClear(sdl_renderer);
+    	SDL_RenderPresent(sdl_renderer);
+
+    	// 创建纹理图案
+    	sdl_texture = SDL_CreateTexture(sdl_renderer, 
+										SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
+										video_codec_ctx->width, video_codec_ctx->height);
+    	if (!sdl_texture) {
+    		fprintf(stderr, "failed to create texture\n");
+    		exit(-1);
+    	}
 	}
 
-    SDL_AudioSpec wanted_audio_spec;
-    SDL_AudioSpec audio_spec;
-    wanted_audio_spec.freq = audio_codec_ctx->sample_rate;
-    wanted_audio_spec.format = AUDIO_S16SYS;
-    wanted_audio_spec.channels = audio_codec_ctx->channels;
-    wanted_audio_spec.silence = 0;
-    wanted_audio_spec.samples = 1024;
-    wanted_audio_spec.callback = audio_callback;
-    wanted_audio_spec.userdata = audio_codec_ctx;
-    if (SDL_OpenAudio(&wanted_audio_spec, &audio_spec)) {
-        fprintf(stderr, "failed to open audio\n");
-        exit(-1);
+    if (audio_codec_ctx) {
+        SDL_AudioSpec wanted_audio_spec;
+        SDL_AudioSpec audio_spec;
+        wanted_audio_spec.freq = audio_codec_ctx->sample_rate;
+        wanted_audio_spec.format = AUDIO_S16SYS;
+        wanted_audio_spec.channels = audio_codec_ctx->channels;
+        wanted_audio_spec.silence = 0;
+        wanted_audio_spec.samples = 1024;
+        wanted_audio_spec.callback = audio_callback;
+        wanted_audio_spec.userdata = audio_codec_ctx;
+        if (SDL_OpenAudio(&wanted_audio_spec, &audio_spec)) {
+            fprintf(stderr, "failed to open audio\n");
+            exit(-1);
+        }
+
+        packet_queue_init(&audio_pkt_queue);
+        SDL_PauseAudio(0);
     }
-
-    packet_queue_init(&audio_pkt_queue);
-    SDL_PauseAudio(0);
 
 	// 从文件中读取packet，送入解码器解码
 	i = 0;
@@ -367,15 +379,14 @@ int main(int argc, char *argv[])
 				// 间隔30ms以产生正常播放速度
 				usleep(30*1000);
 			}
+			av_free_packet(&packet);
 		} else if (packet.stream_index == audio_stream_idx) {
 			// 取得一packet的音频数据
 			packet_queue_put(&audio_pkt_queue, &packet);
 		} else {
 			// 其他数据
-			;
+			av_free_packet(&packet);
 		}
-
-		av_free_packet(&packet);
 
         SDL_Event ev;
         SDL_PollEvent(&ev);
