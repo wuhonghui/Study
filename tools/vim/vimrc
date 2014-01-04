@@ -1,4 +1,4 @@
-" export TERM=xterm-256color
+" ENV: export TERM=xterm-256color
 syntax enable
 set background=dark
 colorscheme solarized
