@@ -19,7 +19,10 @@ ifdef DEBUG
     COMMON_CFLAGS += -DDEBUG -g
 endif
 
+ifeq ($(MAKELEVEL),0)
 export COMMON_CFLAGS
+export CROSS
+endif
 
 # cflags and ldflags
 CFLAGS = $(COMMON_CFLAGS)
