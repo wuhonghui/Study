@@ -7,7 +7,7 @@
 SILENT ?= @
 CROSS ?=
 ECHO = /bin/echo
-CC = $(CROSS)gcc
+CC = $(CROSS)g++
 AR = $(CROSS)ar
 LD = $(CROSS)ld
 RANLIB = $(CROSS)ranlib
@@ -32,20 +32,20 @@ LDFLAGS +=
 
 # list source files
 target = $(shell basename `pwd`)
-clist = $(shell ls *.c 2>/dev/null)
-depends = $(patsubst %.c, %.o, $(clist))
+clist = $(shell ls *.cpp 2>/dev/null)
+depends = $(patsubst %.cpp, %.o, $(clist))
 
 # add objs in sub-directories
-#SUBOBJS = modules/build-modules.o
+SUBOBJS = modules/build-modules.o
 
 # modify Makefile targets
-build-$(target).o: $(depends) subobjs
+build-$(target).o: subobjs $(depends)
 	@$(ECHO) -e "  LD\t$@"
 	$(LD) -r -o $@ $(depends) $(SUBOBJS)
 #	@$(ECHO) -e "  LD\t$(target).so"
 #	$(LD) -shared -fPIC -soname=$(target).so $(LDFLAGS) -o $(target).so $(depends) $(SUBOBJS) 
-#	@$(ECHO) -e "  Build\t$(target)"
-#	$(CC) -o $(target) $@ $(LDFLAGS)
+	@$(ECHO) -e "  Build\t$(target)"
+	$(CC) -o $(target) $@ $(LDFLAGS)
 
 subobjs: $(patsubst %, __%__, $(dir $(SUBOBJS)))
 
@@ -53,16 +53,16 @@ $(patsubst %, __%__, $(dir $(SUBOBJS))):
 	make -C $(patsubst __%__, %, $@) $(TGT)
 
 ifneq ($(clist), )
--include $(clist:.c=.d)
+-include $(clist:.cpp=.d)
 endif
 
-%.d:%.c
+%.d:%.cpp
 	@set -e;rm -f $@;\
 	$(CC) -MM $(CFLAGS) $< > $@.$$$$;\
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; 
 	@rm -rf $@.[0-9]*
 
-%.o:%.c
+%.o:%.cpp
 	@$(ECHO) -e "  CC\t$<"
 	$(CC) $(CFLAGS) -c -o $@ $<
 
